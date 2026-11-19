@@ -1,0 +1,6 @@
+{
+  "name": "Board Game Hub - Checkers & Ludo Pro",
+  "description": "Offline board game collection featuring Checkers Pro (African Dam rules with flying kings and lookahead AI) and Classic Ludo Pro with multi-setup pass and play.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
