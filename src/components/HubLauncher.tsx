@@ -15,6 +15,7 @@ import {
 import { sounds } from '../utils/audio';
 import { LUDO_EMBLEMS } from '../utils/ludoPictures';
 import { getRewardSmartLink } from '../utils/rewardLink';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface HubLauncherProps {
   onLaunchCheckers: (mode: 'online_pve' | 'offline_pvp', size?: 8 | 10) => void;
@@ -45,19 +46,22 @@ export const HubLauncher: React.FC<HubLauncherProps> = ({
           </span>
         </div>
 
-        <button
-          type="button"
-          onClick={handleToggleSound}
-          className="p-2 rounded-xl bg-[#1e1e1e] hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors cursor-pointer"
-          title={soundEnabled ? 'Mute' : 'Enable Sound'}
-          aria-label="Toggle Sound"
-        >
-          {soundEnabled ? (
-            <Volume2 className="w-4 h-4 text-emerald-400" />
-          ) : (
-            <VolumeX className="w-4 h-4 text-neutral-500" />
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <PWAInstallButton />
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            className="p-2 rounded-xl bg-[#1e1e1e] hover:bg-neutral-800 text-neutral-300 hover:text-white transition-colors cursor-pointer"
+            title={soundEnabled ? 'Mute' : 'Enable Sound'}
+            aria-label="Toggle Sound"
+          >
+            {soundEnabled ? (
+              <Volume2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <VolumeX className="w-4 h-4 text-neutral-500" />
+            )}
+          </button>
+        </div>
       </header>
 
       {/* Main Hub Content */}

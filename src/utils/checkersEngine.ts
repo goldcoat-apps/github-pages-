@@ -89,9 +89,11 @@ export function getAllLegalMoves(
   //       they fall into the trap and the King is taken from the stool / board!
   if (mandatoryCaptures) {
     // If any regular piece can jump, pawns MUST jump (cannot slide)
-    const eligiblePawnMoves = pawnCaptures.length > 0 ? pawnCaptures : pawnSimpleMoves;
+    const sortedPawnCaptures = [...pawnCaptures].sort((a, b) => b.captures.length - a.captures.length);
+    const sortedKingCaptures = [...kingCaptures].sort((a, b) => b.captures.length - a.captures.length);
+    const eligiblePawnMoves = sortedPawnCaptures.length > 0 ? sortedPawnCaptures : pawnSimpleMoves;
     // Kings are never forced: can jump or slide (trap mechanism)
-    const eligibleKingMoves = [...kingCaptures, ...kingSimpleMoves];
+    const eligibleKingMoves = [...sortedKingCaptures, ...kingSimpleMoves];
 
     return [...eligiblePawnMoves, ...eligibleKingMoves];
   }
@@ -218,10 +220,12 @@ function getCapturesForPiece(
           const r = row + dr * step;
           const c = col + dc * step;
           if (r < 0 || r >= size || c < 0 || c >= size) break;
-          if (capturedList.some(p => p.row === r && p.col === c)) break;
+          // Note: captured pieces are already lifted from boardState (set to null),
+          // so a Flying King can reverse direction along the same diagonal to capture both front and back!
           const cell = boardState[r][c];
           if (cell !== null) {
             if (cell.team === team) break;
+            if (capturedList.some(p => p.row === r && p.col === c)) break;
             if (enemyFound === null) {
               enemyFound = { row: r, col: c };
             } else {
@@ -329,15 +333,15 @@ function getCapturesForPiece(
           const c = col + dc * step;
           if (r < 0 || r >= size || c < 0 || c >= size) break;
 
-          // Already captured pieces in this multi-jump sequence block the ray
-          if (capturedSoFar.some(p => p.row === r && p.col === c)) {
-            break;
-          }
-
+          // Note: captured pieces are already lifted from currentBoard (set to null),
+          // allowing a Flying King to capture front and back along the same diagonal in one turn.
           const cell = currentBoard[r][c];
           if (cell !== null) {
             if (cell.team === team) {
               break; // blocked by own piece
+            }
+            if (capturedSoFar.some(p => p.row === r && p.col === c)) {
+              break;
             }
             if (enemyPos === null) {
               enemyPos = { row: r, col: c };

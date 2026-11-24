@@ -8,6 +8,7 @@ import { HubLauncher } from './components/HubLauncher';
 import { CheckersMainMenu } from './components/checkers/CheckersMainMenu';
 import { CheckersGame } from './components/checkers/CheckersGame';
 import { LudoGame } from './components/ludo/LudoGame';
+import { OfflinePassGate } from './components/OfflinePassGate';
 
 type AppView = 'hub' | 'checkers_menu' | 'checkers_game' | 'ludo_game';
 
@@ -73,7 +74,7 @@ export default function App() {
 
   return (
     <div className="w-full h-full max-h-full overflow-hidden flex flex-col bg-[#121212]">
-      {renderView()}
+      <OfflinePassGate>{renderView()}</OfflinePassGate>
     </div>
   );
 }
