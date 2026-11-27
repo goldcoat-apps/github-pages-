@@ -1,12 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { LayoutDashboard, WifiOff, ShieldCheck } from 'lucide-react';
-import { getRewardSmartLink } from '../utils/rewardLink';
+import { LayoutDashboard, WifiOff } from 'lucide-react';
 import { sounds } from '../utils/audio';
 
 export const BOARD_HUB_OFFLINE_PASS_KEY = 'board_hub_offline_pass_until';
 export const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
 
-type GateStatus = 'checking' | 'offline' | 'online_ready' | 'unlocked';
+type GateStatus = 'checking' | 'offline' | 'unlocked';
 
 function getStoredPassUntil(): number {
   try {
@@ -16,6 +15,16 @@ function getStoredPassUntil(): number {
   } catch {
     return 0;
   }
+}
+
+function grantTwoHourPass(): number {
+  const passUntil = Date.now() + TWO_HOURS_MS;
+  try {
+    localStorage.setItem(BOARD_HUB_OFFLINE_PASS_KEY, String(passUntil));
+  } catch {
+    // Ignore storage write restriction
+  }
+  return passUntil;
 }
 
 interface OfflinePassGateProps {
@@ -44,7 +53,8 @@ export const OfflinePassGate: React.FC<OfflinePassGateProps> = ({ children }) =>
         throw new Error('Network check failed');
       }
       await response.json();
-      setStatus('online_ready');
+      grantTwoHourPass();
+      setStatus('unlocked');
     } catch {
       setStatus('offline');
     }
@@ -54,26 +64,11 @@ export const OfflinePassGate: React.FC<OfflinePassGateProps> = ({ children }) =>
     const passUntil = getStoredPassUntil();
     if (Date.now() < passUntil) {
       setStatus('unlocked');
-      const remaining = passUntil - Date.now();
-      const timer = window.setTimeout(() => {
-        runNetworkCheck();
-      }, remaining);
-      return () => window.clearTimeout(timer);
+      return;
     }
 
     runNetworkCheck();
   }, [runNetworkCheck]);
-
-  const handleUnlockOfflinePass = () => {
-    sounds.playClick();
-    const passUntil = Date.now() + TWO_HOURS_MS;
-    try {
-      localStorage.setItem(BOARD_HUB_OFFLINE_PASS_KEY, String(passUntil));
-    } catch {
-      // Ignore storage write restriction
-    }
-    setStatus('unlocked');
-  };
 
   if (status === 'unlocked') {
     return <>{children}</>;
@@ -124,30 +119,6 @@ export const OfflinePassGate: React.FC<OfflinePassGateProps> = ({ children }) =>
             >
               🔄 Retry
             </button>
-          </div>
-        )}
-
-        {status === 'online_ready' && (
-          <div className="space-y-5">
-            <div className="rounded-2xl bg-neutral-900/80 border border-amber-500/30 p-4 space-y-1.5">
-              <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-amber-300">
-                <ShieldCheck className="w-4 h-4" />
-                <span>2-Hour Offline Pass Ready</span>
-              </div>
-              <p className="text-xs text-neutral-400 leading-relaxed">
-                Tap below to activate 2 full hours of offline play for African Dame &amp; African Home Ludo.
-              </p>
-            </div>
-
-            <a
-              href={getRewardSmartLink()}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={handleUnlockOfflinePass}
-              className="w-full py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-neutral-950 font-black text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-amber-950/50"
-            >
-              <span>🎁 Unlock 2-Hour Offline Play</span>
-            </a>
           </div>
         )}
       </div>

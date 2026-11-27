@@ -27,7 +27,7 @@ import {
   Image as ImageIcon,
 } from 'lucide-react';
 import { LUDO_EMBLEMS, LUDO_CENTER_CREST } from '../../utils/ludoPictures';
-import { getRewardSmartLink } from '../../utils/rewardLink';
+import { AdBanner320x50 } from '../AdBanner320x50';
 import { LudoGalleryModal } from './LudoGalleryModal';
 
 interface LudoGameProps {
@@ -838,15 +838,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <a
-                href={getRewardSmartLink()}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => sounds.playClick()}
-                className="w-full py-2.5 px-3 rounded-2xl bg-gradient-to-r from-amber-600/25 to-amber-500/20 hover:from-amber-600/40 hover:to-amber-500/35 border border-amber-500/50 text-amber-200 hover:text-white font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>🎁 Online Daily Reward / Unlock Pro Theme</span>
-              </a>
+              <AdBanner320x50 className="py-1" />
               <button
                 type="button"
                 onClick={handleRestart}

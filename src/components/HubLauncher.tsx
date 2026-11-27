@@ -14,8 +14,8 @@ import {
 } from 'lucide-react';
 import { sounds } from '../utils/audio';
 import { LUDO_EMBLEMS } from '../utils/ludoPictures';
-import { getRewardSmartLink } from '../utils/rewardLink';
 import { PWAInstallButton } from './PWAInstallButton';
+import { AdBanner320x50 } from './AdBanner320x50';
 
 interface HubLauncherProps {
   onLaunchCheckers: (mode: 'online_pve' | 'offline_pvp', size?: 8 | 10) => void;
@@ -242,16 +242,8 @@ export const HubLauncher: React.FC<HubLauncherProps> = ({
           </div>
         </div>
 
-        {/* Online Daily Reward / Unlock Pro Theme Smart Link */}
-        <a
-          href={getRewardSmartLink()}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={() => sounds.playClick()}
-          className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-amber-600/20 via-amber-500/15 to-amber-600/20 hover:from-amber-600/35 hover:to-amber-500/30 border border-amber-500/40 hover:border-amber-400/70 text-amber-200 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all shadow-md"
-        >
-          <span>🎁 Online Daily Reward / Unlock Pro Theme</span>
-        </a>
+        {/* Safe 320x50 Banner Slot */}
+        <AdBanner320x50 />
       </main>
 
       {/* Commercial Build Footer */}

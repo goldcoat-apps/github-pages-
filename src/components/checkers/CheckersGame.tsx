@@ -20,7 +20,7 @@ import {
   getLegalMovesForSelectedPiece,
 } from '../../utils/checkersEngine';
 import { sounds } from '../../utils/audio';
-import { getRewardSmartLink } from '../../utils/rewardLink';
+import { AdBanner320x50 } from '../AdBanner320x50';
 import { CheckersBoard } from './CheckersBoard';
 import {
   ArrowLeft,
@@ -443,7 +443,7 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [turn, isAiMoving, gameMode, winner, board, aiDifficulty, boardSize, moveCount, moveLog, onePieceRule]);
+  }, [turn, isAiMoving, gameMode, winner, board, aiDifficulty, boardSize, moveCount, moveLog, onePieceRule, huffRule, mandatoryCaptures]);
 
   // Undo move
   const handleUndo = () => {
@@ -1041,15 +1041,7 @@ export const CheckersGame: React.FC<CheckersGameProps> = ({
             </div>
 
             <div className="flex flex-col gap-2.5">
-              <a
-                href={getRewardSmartLink()}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => sounds.playClick()}
-                className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-600/25 to-amber-500/20 hover:from-amber-600/40 hover:to-amber-500/35 border border-amber-500/50 text-amber-200 hover:text-white font-bold text-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
-              >
-                <span>🎁 Online Daily Reward / Unlock Pro Theme</span>
-              </a>
+              <AdBanner320x50 className="py-1" />
               <button
                 type="button"
                 onClick={() => startNewGame()}

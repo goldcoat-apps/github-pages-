@@ -615,10 +615,12 @@ export interface HuffResult {
 
 /**
  * African Dam "Huff / Stool Removal" Rule:
- * In traditional African Dam (Ghanaian Damii), if a King (or piece) refuses to capture,
- * or takes some pieces and leaves some behind ("takes some and living some"),
- * or if a King with an available capture is ignored,
+ * In traditional African Dam (Ghanaian Damii), if a King (or piece) refuses to capture
+ * when an open capture exists and makes a non-capturing quiet move instead,
  * the opponent immediately removes that King/piece from its stool / the board!
+ *
+ * Choosing between multiple valid capture options (e.g. King taking pieces on the left
+ * instead of the right among 2, 3, or 4 capture paths) is 100% lawful and NEVER huffed.
  */
 export function checkHuffPenalty(
   board: (Piece | null)[][],
@@ -633,27 +635,10 @@ export function checkHuffPenalty(
   const team = movingPiece.team;
 
   // Authentic African Dam Rule:
-  // "When two options like you have take piece, use kings to take pieces or use pieces take pieces.
-  // When use pieces to take pieces, Kings shouldn't get from the board!"
-  // If the player executed a capture (move.captures.length > 0), they DID take pieces.
-  // Kings are completely safe and MUST NEVER be removed from the board!
+  // If the player executed a capture (move.captures.length > 0), they chose a lawful capture
+  // branch (e.g., left vs right among 2–4 options) and completed that jump sequence.
+  // Kings and pieces MUST NEVER be removed from the board for picking one capture path over another!
   if (move.captures.length > 0) {
-    // Only check if THIS specific moving piece took some and left some:
-    const pieceCaps = getCapturesForPiece(board, movingPiece, size);
-    if (pieceCaps.length > 0) {
-      const maxPossible = Math.max(...pieceCaps.map(m => m.captures.length));
-      if (move.captures.length < maxPossible) {
-        const leftBehind = maxPossible - move.captures.length;
-        return {
-          isHuffable: true,
-          huffedPiecePos: move.to,
-          pieceType: movingPiece.isKing ? 'king' : 'man',
-          reason: `${movingPiece.isKing ? 'King 🤴' : 'Piece'} took ${move.captures.length} piece(s) but left ${leftBehind} behind! Opponent removes that piece from the board!`,
-          piecesMissed: leftBehind,
-        };
-      }
-    }
-    // Fully completed capture sequence with this piece - perfectly lawful, no penalty!
     return { isHuffable: false, huffedPiecePos: null, pieceType: 'man', piecesMissed: 0 };
   }
 
@@ -917,10 +902,7 @@ function quiescence(
     return evaluateBoard(board, aiTeam, size);
   }
 
-  // Under African Dam rules, captures are compulsory and player must take maximum lawful pieces
-  const maxCaps = Math.max(...captureMoves.map(m => m.captures.length));
-  const maxCaptureMoves = captureMoves.filter(m => m.captures.length === maxCaps);
-  const orderedCaptures = orderMoves(maxCaptureMoves, size);
+  const orderedCaptures = orderMoves(captureMoves, size);
 
   if (isMaximizing) {
     let maxEval = -Infinity;
@@ -966,10 +948,8 @@ export function getBestMoveAI(
 
   // Rule 1: "Only piece to take piece or piece's is force (when you like it or not is a force)"
   if (pawnCaptures.length > 0) {
-    // When a regular piece has a capture, pawn capture is strictly compulsory
-    const allEligibleCaptures = [...pawnCaptures, ...kingCaptures];
-    const maxCaptures = Math.max(...allEligibleCaptures.map(m => m.captures.length));
-    movesToConsider = allEligibleCaptures.filter(m => m.captures.length === maxCaptures);
+    // When a regular piece has a capture, consider all pawn and king capture branches freely
+    movesToConsider = [...pawnCaptures, ...kingCaptures];
   } else if (kingCaptures.length > 0) {
     // Rule 2: "We don't force opponent to use kings to piece or piece's, in fact is trap"
     // The player may lay a trap to remove the AI King from the board!
@@ -979,15 +959,9 @@ export function getBestMoveAI(
 
     if (fellIntoTrap) {
       const quietMoves = legalMoves.filter(m => m.captures.length === 0);
-      if (quietMoves.length > 0) {
-        movesToConsider = quietMoves;
-      } else {
-        const maxCaptures = Math.max(...kingCaptures.map(m => m.captures.length));
-        movesToConsider = kingCaptures.filter(m => m.captures.length === maxCaptures);
-      }
+      movesToConsider = quietMoves.length > 0 ? quietMoves : kingCaptures;
     } else {
-      const maxCaptures = Math.max(...kingCaptures.map(m => m.captures.length));
-      movesToConsider = kingCaptures.filter(m => m.captures.length === maxCaptures);
+      movesToConsider = kingCaptures;
     }
   }
 
@@ -1073,13 +1047,9 @@ function minimax(
     return isMaximizing ? -10000 - depth : 10000 + depth;
   }
 
-  // If captures exist, African Dam majority capture strictly restricts candidates to max captures
+  // When captures exist, prioritize capture branches (player/AI may choose any capture direction freely)
   const captureMoves = legalMoves.filter(m => m.captures.length > 0);
-  let candidateMoves = legalMoves;
-  if (captureMoves.length > 0) {
-    const maxCaptures = Math.max(...captureMoves.map(m => m.captures.length));
-    candidateMoves = captureMoves.filter(m => m.captures.length === maxCaptures);
-  }
+  const candidateMoves = captureMoves.length > 0 ? captureMoves : legalMoves;
 
   if (depth <= 0) {
     // Extend with quiescence search on tactical captures
