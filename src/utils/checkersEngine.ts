@@ -171,10 +171,12 @@ function getSimpleMovesForPiece(board: (Piece | null)[][], piece: Piece, size: n
 
 /**
  * Finds all capture paths for a piece.
- * Under Ghanaian Draughts / Damii rules:
- * - A King or Pawn can choose to make a single capture (landing on any valid empty square behind the piece, including on border squares)
- * - OR continue chained captures to take multiple/all pieces!
- * - Both intermediate and complete multi-jump landing destinations are available as legal choices.
+ * Under African Dam (Ghanaian Damii) rules:
+ * - Kings and Pawns can choose any available branch (e.g. left vs right among 2–4 options).
+ * - Captured pieces remain on the board until the end of the turn, and a piece/King
+ *   cannot reverse 180° along the same diagonal to capture front and back at the same time.
+ * - Intermediate landing squares that omit a continuation jump along the chosen branch remain
+ *   selectable as moves so `checkHuffPenalty` can remove the King if a player forgets a lawful capture.
  */
 function getCapturesForPiece(
   board: (Piece | null)[][],
@@ -187,7 +189,8 @@ function getCapturesForPiece(
     pos: Position,
     currentPiece: Piece,
     boardState: (Piece | null)[][],
-    capturedList: Position[]
+    capturedList: Position[],
+    prevDir?: { dr: number; dc: number }
   ): boolean {
     const { row, col } = pos;
     const { team, isKing } = currentPiece;
@@ -200,6 +203,7 @@ function getCapturesForPiece(
 
     if (!isKing) {
       for (const { dr, dc } of directions) {
+        if (prevDir && dr === -prevDir.dr && dc === -prevDir.dc) continue;
         const eR = row + dr;
         const eC = col + dc;
         const lR = row + dr * 2;
@@ -214,14 +218,16 @@ function getCapturesForPiece(
       }
     } else {
       for (const { dr, dc } of directions) {
+        // Kings cannot reverse 180 degrees along the same diagonal to capture front and back at the same time
+        if (prevDir && dr === -prevDir.dr && dc === -prevDir.dc) continue;
+
         let step = 1;
         let enemyFound: Position | null = null;
         while (true) {
           const r = row + dr * step;
           const c = col + dc * step;
           if (r < 0 || r >= size || c < 0 || c >= size) break;
-          // Note: captured pieces are already lifted from boardState (set to null),
-          // so a Flying King can reverse direction along the same diagonal to capture both front and back!
+          // Captured pieces stay on boardState until the end of the move (cannot pass over captured pieces twice)
           const cell = boardState[r][c];
           if (cell !== null) {
             if (cell.team === team) break;
@@ -246,7 +252,8 @@ function getCapturesForPiece(
     currentPiece: Piece,
     currentBoard: (Piece | null)[][],
     capturedSoFar: Position[],
-    pathSoFar: Position[]
+    pathSoFar: Position[],
+    prevDir?: { dr: number; dc: number }
   ) {
     const { row, col } = currentPos;
     const { team, isKing } = currentPiece;
@@ -258,8 +265,10 @@ function getCapturesForPiece(
     ];
 
     if (!isKing) {
-      // African Dam Pawn: Can capture forward AND backward!
+      // African Dam Pawn: Can capture forward AND backward (but not 180° back over a just-captured square)
       for (const { dr, dc } of directions) {
+        if (prevDir && dr === -prevDir.dr && dc === -prevDir.dc) continue;
+
         const enemyR = row + dr;
         const enemyC = col + dc;
         const landR = row + dr * 2;
@@ -275,7 +284,7 @@ function getCapturesForPiece(
           if (enemyPiece && enemyPiece.team !== team && !alreadyCaptured && !landOnCaptured && landCell === null) {
             const nextBoard = cloneBoard(currentBoard);
             nextBoard[row][col] = null;
-            nextBoard[enemyR][enemyC] = null;
+            // Keep captured piece on nextBoard until the move ends (standard Draughts rule)
 
             const willPromote = (team === 'R' && landR === 0) || (team === 'W' && landR === size - 1);
             // In Fair Draughts Rules: A man only crowns if it STOPS on the king row at the end of the move!
@@ -290,25 +299,26 @@ function getCapturesForPiece(
 
             const nextCaptured = [...capturedSoFar, { row: enemyR, col: enemyC }];
             const nextPath = [...pathSoFar, { row: landR, col: landC }];
+            const dirUsed = { dr, dc };
 
             const hasMore = canJumpFurther(
               { row: landR, col: landC },
               nextPiece,
               nextBoard,
-              nextCaptured
+              nextCaptured,
+              dirUsed
             );
 
             if (hasMore) {
-              // Compulsory: MUST continue multi-jump sequence! Cannot stop early!
               searchJumps(
                 { row: landR, col: landC },
                 nextPiece,
                 nextBoard,
                 nextCaptured,
-                nextPath
+                nextPath,
+                dirUsed
               );
             } else {
-              // Terminal landing square for this full capture sequence
               completedMoves.push({
                 from: { row: piece.row, col: piece.col },
                 to: { row: landR, col: landC },
@@ -323,8 +333,11 @@ function getCapturesForPiece(
     } else {
       // Flying King capture:
       // Can jump over enemy along diagonal ray at any distance,
-      // and can land on EVERY empty square along that ray behind the enemy!
+      // and can land on empty squares along that ray behind the enemy.
+      // Cannot reverse 180° along the same diagonal to capture front and back at the same time.
       for (const { dr, dc } of directions) {
+        if (prevDir && dr === -prevDir.dr && dc === -prevDir.dc) continue;
+
         let step = 1;
         let enemyPos: Position | null = null;
 
@@ -333,8 +346,7 @@ function getCapturesForPiece(
           const c = col + dc * step;
           if (r < 0 || r >= size || c < 0 || c >= size) break;
 
-          // Note: captured pieces are already lifted from currentBoard (set to null),
-          // allowing a Flying King to capture front and back along the same diagonal in one turn.
+          // Captured pieces stay on currentBoard until move finishes, blocking any pass-back along this diagonal
           const cell = currentBoard[r][c];
           if (cell !== null) {
             if (cell.team === team) {
@@ -349,10 +361,10 @@ function getCapturesForPiece(
               break; // cannot jump two pieces in one ray without landing
             }
           } else if (enemyPos !== null) {
-            // Every empty square behind the enemy piece is an independent, valid landing choice!
+            // Every empty square behind the enemy piece is an independent landing choice
             const nextBoard = cloneBoard(currentBoard);
             nextBoard[row][col] = null;
-            nextBoard[enemyPos.row][enemyPos.col] = null;
+            // Keep enemyPos on nextBoard until applyMove at end of turn
 
             const nextPiece: Piece = {
               ...currentPiece,
@@ -363,25 +375,26 @@ function getCapturesForPiece(
 
             const nextCaptured = [...capturedSoFar, enemyPos];
             const nextPath = [...pathSoFar, { row: r, col: c }];
+            const dirUsed = { dr, dc };
 
             const hasMore = canJumpFurther(
               { row: r, col: c },
               nextPiece,
               nextBoard,
-              nextCaptured
+              nextCaptured,
+              dirUsed
             );
 
             if (hasMore) {
-              // Compulsory: Flying King MUST continue jumping if further jump exists!
               searchJumps(
                 { row: r, col: c },
                 nextPiece,
                 nextBoard,
                 nextCaptured,
-                nextPath
+                nextPath,
+                dirUsed
               );
             } else {
-              // Valid completed terminal landing square
               completedMoves.push({
                 from: { row: piece.row, col: piece.col },
                 to: { row: r, col: c },
@@ -613,14 +626,35 @@ export interface HuffResult {
   piecesMissed: number;
 }
 
+function isStrictCapturePrefix(shorter: Move, longer: Move): boolean {
+  if (longer.captures.length <= shorter.captures.length) return false;
+  return shorter.captures.every(
+    (cap, idx) =>
+      longer.captures[idx].row === cap.row &&
+      longer.captures[idx].col === cap.col
+  );
+}
+
+function filterCompleteCaptureMoves(captureMoves: Move[]): Move[] {
+  const complete = captureMoves.filter(
+    m =>
+      !captureMoves.some(
+        other =>
+          other.from.row === m.from.row &&
+          other.from.col === m.from.col &&
+          isStrictCapturePrefix(m, other)
+      )
+  );
+  return complete.length > 0 ? complete : captureMoves;
+}
+
 /**
  * African Dam "Huff / Stool Removal" Rule:
- * In traditional African Dam (Ghanaian Damii), if a King (or piece) refuses to capture
- * when an open capture exists and makes a non-capturing quiet move instead,
- * the opponent immediately removes that King/piece from its stool / the board!
- *
- * Choosing between multiple valid capture options (e.g. King taking pieces on the left
- * instead of the right among 2, 3, or 4 capture paths) is 100% lawful and NEVER huffed.
+ * - When a King has 2, 3, or 4 capture options (e.g. left vs right), it may choose ANY
+ *   option and stay safe as long as it captures ALL lawful pieces along that chosen path.
+ * - If the King (or piece) captures some pieces along its chosen path and forgets a lawful
+ *   continuation piece along that path, the opponent removes that King/piece from the board!
+ * - If a King/piece refuses an available capture and makes a quiet move, it is also removed.
  */
 export function checkHuffPenalty(
   board: (Piece | null)[][],
@@ -635,10 +669,23 @@ export function checkHuffPenalty(
   const team = movingPiece.team;
 
   // Authentic African Dam Rule:
-  // If the player executed a capture (move.captures.length > 0), they chose a lawful capture
-  // branch (e.g., left vs right among 2–4 options) and completed that jump sequence.
-  // Kings and pieces MUST NEVER be removed from the board for picking one capture path over another!
+  // Choosing between separate branches (e.g. left vs right) is 100% lawful.
+  // Huff ONLY applies if the piece took some pieces on its chosen path and forgot
+  // a lawful continuation piece in that same capture chain!
   if (move.captures.length > 0) {
+    const pieceCaps = getCapturesForPiece(board, movingPiece, size);
+    const extendedMoves = pieceCaps.filter(candidate => isStrictCapturePrefix(move, candidate));
+    if (extendedMoves.length > 0) {
+      const maxExtended = Math.max(...extendedMoves.map(m => m.captures.length));
+      const leftBehind = maxExtended - move.captures.length;
+      return {
+        isHuffable: true,
+        huffedPiecePos: move.to,
+        pieceType: movingPiece.isKing ? 'king' : 'man',
+        reason: `${movingPiece.isKing ? 'King 🤴' : 'Piece'} captured ${move.captures.length} piece(s) and forgot ${leftBehind} lawful piece(s) on that path! Opponent removes it from the board!`,
+        piecesMissed: leftBehind,
+      };
+    }
     return { isHuffable: false, huffedPiecePos: null, pieceType: 'man', piecesMissed: 0 };
   }
 
@@ -902,7 +949,7 @@ function quiescence(
     return evaluateBoard(board, aiTeam, size);
   }
 
-  const orderedCaptures = orderMoves(captureMoves, size);
+  const orderedCaptures = orderMoves(filterCompleteCaptureMoves(captureMoves), size);
 
   if (isMaximizing) {
     let maxEval = -Infinity;
@@ -948,20 +995,21 @@ export function getBestMoveAI(
 
   // Rule 1: "Only piece to take piece or piece's is force (when you like it or not is a force)"
   if (pawnCaptures.length > 0) {
-    // When a regular piece has a capture, consider all pawn and king capture branches freely
-    movesToConsider = [...pawnCaptures, ...kingCaptures];
+    // Consider all complete pawn and king capture branches freely (avoid incomplete huffable stops)
+    movesToConsider = filterCompleteCaptureMoves([...pawnCaptures, ...kingCaptures]);
   } else if (kingCaptures.length > 0) {
     // Rule 2: "We don't force opponent to use kings to piece or piece's, in fact is trap"
     // The player may lay a trap to remove the AI King from the board!
     // On Easy / Medium, the AI King can fall into the trap by making a non-capturing quiet move.
     const fallIntoTrapChance = difficulty === 'easy' ? 0.40 : difficulty === 'medium' ? 0.18 : 0.04;
     const fellIntoTrap = Math.random() < fallIntoTrapChance;
+    const safeKingCaptures = filterCompleteCaptureMoves(kingCaptures);
 
     if (fellIntoTrap) {
       const quietMoves = legalMoves.filter(m => m.captures.length === 0);
-      movesToConsider = quietMoves.length > 0 ? quietMoves : kingCaptures;
+      movesToConsider = quietMoves.length > 0 ? quietMoves : safeKingCaptures;
     } else {
-      movesToConsider = kingCaptures;
+      movesToConsider = safeKingCaptures;
     }
   }
 
@@ -1047,9 +1095,9 @@ function minimax(
     return isMaximizing ? -10000 - depth : 10000 + depth;
   }
 
-  // When captures exist, prioritize capture branches (player/AI may choose any capture direction freely)
+  // When captures exist, prioritize complete capture branches (player/AI may choose any capture direction freely)
   const captureMoves = legalMoves.filter(m => m.captures.length > 0);
-  const candidateMoves = captureMoves.length > 0 ? captureMoves : legalMoves;
+  const candidateMoves = captureMoves.length > 0 ? filterCompleteCaptureMoves(captureMoves) : legalMoves;
 
   if (depth <= 0) {
     // Extend with quiescence search on tactical captures
